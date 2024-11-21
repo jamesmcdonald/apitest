@@ -9,10 +9,10 @@ import (
 	"strings"
 
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
+	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
-	secretspb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
 )
 
 func main() {
@@ -81,7 +81,7 @@ func callbackHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
 		client := oauthConfig.Client(context.Background(), token)
 
 		secretName := "projects/xanthspod/secrets/apitest/versions/latest"
-		secret, err := accessSecretVersion(client, secretName)
+		secret, err := accessSecretVersion(context.Background(), token, client, secretName)
 		if err != nil {
 			http.Error(w, "Failed to access secret: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -90,15 +90,16 @@ func callbackHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
 	}
 }
 
-func accessSecretVersion(client *http.Client, name string) (string, error) {
-	ctx := context.Background()
-	smclient, err := secretmanager.NewClient(ctx, option.WithHTTPClient(client))
+func accessSecretVersion(ctx context.Context, token *oauth2.Token, client *http.Client, name string) (string, error) {
+	tokenSource := oauth2.StaticTokenSource(token)
+
+	smclient, err := secretmanager.NewClient(ctx, option.WithTokenSource(tokenSource))
 	if err != nil {
 		return "", fmt.Errorf("secretmanager NewClient: %v", err)
 	}
 	defer smclient.Close()
 
-	req := &secretspb.AccessSecretVersionRequest{
+	req := &secretmanagerpb.AccessSecretVersionRequest{
 		Name: name,
 	}
 	res, err := smclient.AccessSecretVersion(ctx, req)
