@@ -78,10 +78,9 @@ func callbackHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
 			http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		client := oauthConfig.Client(context.Background(), token)
-
+		tokenSource := oauthConfig.TokenSource(context.Background(), token)
 		secretName := "projects/xanthspod/secrets/apitest/versions/latest"
-		secret, err := accessSecretVersion(context.Background(), token, client, secretName)
+		secret, err := accessSecretVersion(context.Background(), &tokenSource, secretName)
 		if err != nil {
 			http.Error(w, "Failed to access secret: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -90,10 +89,9 @@ func callbackHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
 	}
 }
 
-func accessSecretVersion(ctx context.Context, token *oauth2.Token, client *http.Client, name string) (string, error) {
-	tokenSource := oauth2.StaticTokenSource(token)
+func accessSecretVersion(ctx context.Context, tokenSource *oauth2.TokenSource, name string) (string, error) {
 
-	smclient, err := secretmanager.NewClient(ctx, option.WithTokenSource(tokenSource))
+	smclient, err := secretmanager.NewClient(ctx, option.WithTokenSource(*tokenSource))
 	if err != nil {
 		return "", fmt.Errorf("secretmanager NewClient: %v", err)
 	}
