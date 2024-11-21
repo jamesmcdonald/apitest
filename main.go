@@ -86,7 +86,7 @@ func callbackHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
 			http.Error(w, "Failed to access secret: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		fmt.Fprintf(w, "Secret: %s", secret)
+		w.Write([]byte(secret))
 	}
 }
 
@@ -112,12 +112,12 @@ func accessSecretVersion(ctx context.Context, tokenSource *oauth2.TokenSource, n
 		secrets = append(secrets, secret.Name)
 	}
 	var sb strings.Builder
-	sb.WriteString("<h1>Secrets</h1>")
+	sb.WriteString("<!DOCTYPE html><html><head><title>Secrets List</title></head><body><h1>Secrets</h1>")
 	sb.WriteString("<ul>")
 	for _, secret := range secrets {
 		sb.WriteString("<li>")
 		sb.WriteString(secret)
 	}
-	sb.WriteString("</ul>")
+	sb.WriteString("</ul></body></html>")
 	return sb.String(), nil
 }
