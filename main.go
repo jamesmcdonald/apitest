@@ -12,6 +12,7 @@ import (
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
 
@@ -102,7 +103,7 @@ func accessSecretVersion(ctx context.Context, tokenSource *oauth2.TokenSource, n
 	secrets := []string{}
 	for {
 		secret, err := res.Next()
-		if err == io.EOF {
+		if err == iterator.Done {
 			break
 		}
 		if err != nil {
