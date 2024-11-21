@@ -31,12 +31,12 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Failed to open %s file: %v\n", s.name, err)
 			os.Exit(1)
 		}
-		defer f.Close()
 		data, err := io.ReadAll(f)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to read %s file: %v\n", s.name, err)
 			os.Exit(1)
 		}
+		f.Close()
 		*s.variable = strings.TrimSpace(string(data))
 	}
 
