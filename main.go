@@ -97,12 +97,26 @@ func accessSecretVersion(ctx context.Context, tokenSource *oauth2.TokenSource, n
 	}
 	defer smclient.Close()
 
-	req := &secretmanagerpb.AccessSecretVersionRequest{
-		Name: name,
+	req := &secretmanagerpb.ListSecretsRequest{Parent: "projects/xanthspod"}
+	res := smclient.ListSecrets(ctx, req)
+	secrets := []string{}
+	for {
+		secret, err := res.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return "", fmt.Errorf("secretmanager ListSecrets: %v", err)
+		}
+		secrets = append(secrets, secret.Name)
 	}
-	res, err := smclient.AccessSecretVersion(ctx, req)
-	if err != nil {
-		return "", fmt.Errorf("AccessSecretVersion: %v", err)
+	var sb strings.Builder
+	sb.WriteString("<h1>Secrets</h1>")
+	sb.WriteString("<ul>")
+	for _, secret := range secrets {
+		sb.WriteString("<li>")
+		sb.WriteString(secret)
 	}
-	return string(res.Payload.Data), nil
+	sb.WriteString("</ul>")
+	return sb.String(), nil
 }
