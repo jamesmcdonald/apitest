@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apitest
+  namespace: default
+  labels:
+    app: apitest
+spec:
+  selector:
+    matchLabels:
+      app: apitest
+  replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: apitest
+    spec:
+      containers:
+      - name: apitest
+        image: ghcr.io/jamesmcdonald/apitest
+        imagePullPolicy: Always
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
+          limits:
+            cpu: 100m
+            memory: 100Mi
+        livenessProbe:
+          tcpSocket:
+            port: 8080
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 5
+          timeoutSeconds: 2
+          successThreshold: 1
+          failureThreshold: 3
+          periodSeconds: 10
+        ports:
+        - containerPort: 8080
+          name: http
+        volumeMounts:
+        - name: apitest-secret
+          mountPath: /secrets
+      volumes:
+        - name: apitest-secret
+          secret:
+            secretName: apitest-secret
+      restartPolicy: Always
