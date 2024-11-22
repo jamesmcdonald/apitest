@@ -133,7 +133,7 @@ func callbackHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
 		}
 		w.Write([]byte(secret))
 		fmt.Fprintf(w, "<p>State Token: %s</p>", html.EscapeString(stateToken))
-		fmt.Fprintf(w, "<p>Token: %+v</p>", html.EscapeString(token.AccessToken))
+		fmt.Fprintf(w, "<p>Token: %s</p>", html.EscapeString(fmt.Sprintf("%+v", token)))
 	}
 }
 
