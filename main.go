@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math/big"
@@ -124,7 +125,12 @@ func callbackHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
 			http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		session.Values["token"] = *token
+		serializedToken, err := json.Marshal(token)
+		if err != nil {
+			http.Error(w, "Failed to serialise token: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		session.Values["token"] = string(serializedToken)
 		delete(session.Values, "stateToken")
 		err = session.Save(r, w)
 		if err != nil {
@@ -143,11 +149,17 @@ func listHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
 			return
 		}
 		val := session.Values["token"]
-		var token oauth2.Token
-		if t, ok := val.(oauth2.Token); ok {
-			token = t
+		var serializedToken string
+		if t, ok := val.(string); ok {
+			serializedToken = t
 		} else {
 			http.Redirect(w, r, "/oauth2/login", http.StatusTemporaryRedirect)
+			return
+		}
+		var token *oauth2.Token
+		err = json.Unmarshal([]byte(serializedToken), &token)
+		if err != nil {
+			http.Error(w, "Failed to deserialise token: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		tokenSource := oauthConfig.TokenSource(context.Background(), token)
