@@ -20,12 +20,16 @@ import (
 	"google.golang.org/api/option"
 )
 
-var store *sessions.CookieStore
+type App struct {
+	OauthConfig *oauth2.Config
+	CookieJar   *sessions.CookieStore
+}
 
 func main() {
 	var client_id string
 	var client_secret string
 	var cookie_secret string
+	var cookie_key string
 
 	for _, s := range []struct {
 		name     string
@@ -34,6 +38,7 @@ func main() {
 		{"client_id", &client_id},
 		{"client_secret", &client_secret},
 		{"cookie_secret", &cookie_secret},
+		{"cookie_key", &cookie_key},
 	} {
 		f, err := os.Open("/secrets/" + s.name)
 		if err != nil {
@@ -49,21 +54,23 @@ func main() {
 		*s.variable = strings.TrimSpace(string(data))
 	}
 
-	store = sessions.NewCookieStore([]byte(cookie_secret))
-	oauthConfig := &oauth2.Config{
-		ClientID:     client_id,
-		ClientSecret: client_secret,
-		RedirectURL:  "https://apitest.jamesmcdonald.com/oauth2/callback",
-		Scopes: []string{
-			"https://www.googleapis.com/auth/cloud-platform",
+	app := &App{
+		OauthConfig: &oauth2.Config{
+			ClientID:     client_id,
+			ClientSecret: client_secret,
+			RedirectURL:  "https://apitest.jamesmcdonald.com/oauth2/callback",
+			Scopes: []string{
+				"https://www.googleapis.com/auth/cloud-platform",
+			},
+			Endpoint: google.Endpoint,
 		},
-		Endpoint: google.Endpoint,
+		CookieJar: sessions.NewCookieStore([]byte(cookie_secret), []byte(cookie_key)),
 	}
 
 	http.HandleFunc("/", indexHandler)
-	http.HandleFunc("/oauth2/login", loginHandler(oauthConfig))
-	http.HandleFunc("/oauth2/callback", callbackHandler(oauthConfig))
-	http.HandleFunc("/list", listHandler(oauthConfig))
+	http.HandleFunc("/oauth2/login", app.loginHandler())
+	http.HandleFunc("/oauth2/callback", app.callbackHandler())
+	http.HandleFunc("/list", app.listHandler())
 	http.ListenAndServe(":8080", nil)
 }
 
@@ -71,7 +78,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "<a href='/oauth2/login'>Login with Google</a>")
 }
 
-func loginHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
+func (a *App) loginHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var stateToken string
 		const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
@@ -83,21 +90,21 @@ func loginHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
 			}
 			stateToken += string(chars[rv.Int64()])
 		}
-		session, err := store.Get(r, "oauth2-state")
+		session, err := a.CookieJar.Get(r, "oauth2-state")
 		session.Values["stateToken"] = stateToken
 		err = session.Save(r, w)
 		if err != nil {
 			http.Error(w, "Failed to save session: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		url := oauthConfig.AuthCodeURL(stateToken, oauth2.AccessTypeOffline)
+		url := a.OauthConfig.AuthCodeURL(stateToken, oauth2.AccessTypeOffline)
 		http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 	}
 }
 
-func callbackHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
+func (a *App) callbackHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		session, err := store.Get(r, "oauth2-state")
+		session, err := a.CookieJar.Get(r, "oauth2-state")
 		if err != nil {
 			http.Error(w, "Failed to get session: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -120,7 +127,7 @@ func callbackHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
 			http.Error(w, "Code not found", http.StatusBadRequest)
 			return
 		}
-		token, err := oauthConfig.Exchange(context.Background(), code)
+		token, err := a.OauthConfig.Exchange(context.Background(), code)
 		if err != nil {
 			http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -141,9 +148,9 @@ func callbackHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
 	}
 }
 
-func listHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
+func (a *App) listHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		session, err := store.Get(r, "oauth2-state")
+		session, err := a.CookieJar.Get(r, "oauth2-state")
 		if err != nil {
 			http.Error(w, "Failed to get session: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -162,7 +169,7 @@ func listHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
 			http.Error(w, "Failed to deserialise token: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		tokenSource := oauthConfig.TokenSource(context.Background(), token)
+		tokenSource := a.OauthConfig.TokenSource(context.Background(), token)
 		htmlDoc, err := listSecrets(context.Background(), &tokenSource)
 		if err != nil {
 			http.Error(w, "Failed to access secret: "+err.Error(), http.StatusInternalServerError)
@@ -173,7 +180,6 @@ func listHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
 }
 
 func listSecrets(ctx context.Context, tokenSource *oauth2.TokenSource) (string, error) {
-
 	smclient, err := secretmanager.NewClient(ctx, option.WithTokenSource(*tokenSource))
 	if err != nil {
 		return "", fmt.Errorf("secretmanager NewClient: %v", err)
