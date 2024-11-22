@@ -2,29 +2,38 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
+	"html"
 	"io"
+	"math/big"
 	"net/http"
 	"os"
 	"strings"
 
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
+	"github.com/gorilla/sessions"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
 
+var store *sessions.CookieStore
+
 func main() {
 	var client_id string
 	var client_secret string
+	var cookie_secret string
+
 	for _, s := range []struct {
 		name     string
 		variable *string
 	}{
 		{"client_id", &client_id},
 		{"client_secret", &client_secret},
+		{"cookie_secret", &cookie_secret},
 	} {
 		f, err := os.Open("/secrets/" + s.name)
 		if err != nil {
@@ -40,6 +49,7 @@ func main() {
 		*s.variable = strings.TrimSpace(string(data))
 	}
 
+	store = sessions.NewCookieStore([]byte(cookie_secret))
 	oauthConfig := &oauth2.Config{
 		ClientID:     client_id,
 		ClientSecret: client_secret,
@@ -62,13 +72,48 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
 func loginHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		url := oauthConfig.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
+		var stateToken string
+		const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
+		for i := 0; i < 16; i++ {
+			rv, err := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
+			if err != nil {
+				http.Error(w, "Failed to generate state token: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			stateToken += string(chars[rv.Int64()])
+		}
+		session, err := store.Get(r, "oauth2-state")
+		session.Values["stateToken"] = stateToken
+		err = session.Save(r, w)
+		if err != nil {
+			http.Error(w, "Failed to save session: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		url := oauthConfig.AuthCodeURL(stateToken, oauth2.AccessTypeOffline)
 		http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 	}
 }
 
 func callbackHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		session, err := store.Get(r, "oauth2-state")
+		if err != nil {
+			http.Error(w, "Failed to get session: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		val := session.Values["stateToken"]
+		var stateToken string
+		if st, ok := val.(string); ok {
+			stateToken = st
+		} else {
+			http.Error(w, "Failed to get state token from session", http.StatusInternalServerError)
+			return
+		}
+
+		if stateToken != r.FormValue("state") {
+			http.Error(w, "State token mismatch", http.StatusBadRequest)
+			return
+		}
 		code := r.FormValue("code")
 		if code == "" {
 			http.Error(w, "Code not found", http.StatusBadRequest)
@@ -87,6 +132,8 @@ func callbackHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
 			return
 		}
 		w.Write([]byte(secret))
+		fmt.Fprintf(w, "<p>State Token: %s</p>", html.EscapeString(stateToken))
+		fmt.Fprintf(w, "<p>Token: %+v</p>", html.EscapeString(token.AccessToken))
 	}
 }
 
@@ -118,6 +165,6 @@ func accessSecretVersion(ctx context.Context, tokenSource *oauth2.TokenSource, n
 		sb.WriteString("<li>")
 		sb.WriteString(secret)
 	}
-	sb.WriteString("</ul></body></html>")
+	sb.WriteString("</ul>")
 	return sb.String(), nil
 }

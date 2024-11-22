@@ -4,6 +4,7 @@ go 1.23.1
 
 require (
 	cloud.google.com/go/secretmanager v1.14.2
+	github.com/gorilla/sessions v1.4.0
 	golang.org/x/oauth2 v0.24.0
 	google.golang.org/api v0.208.0
 )
@@ -21,6 +22,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.4 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.0 // indirect
+	github.com/gorilla/securecookie v1.1.2 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.54.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.54.0 // indirect
