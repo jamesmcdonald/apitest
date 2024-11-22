@@ -124,7 +124,7 @@ func callbackHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
 			http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		session.Values["token"] = token
+		session.Values["token"] = *token
 		delete(session.Values, "stateToken")
 		session.Save(r, w)
 		http.Redirect(w, r, "/list", http.StatusTemporaryRedirect)
