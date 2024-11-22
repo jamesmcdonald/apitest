@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"html"
 	"io"
 	"math/big"
 	"net/http"
@@ -63,6 +62,7 @@ func main() {
 	http.HandleFunc("/", indexHandler)
 	http.HandleFunc("/oauth2/login", loginHandler(oauthConfig))
 	http.HandleFunc("/oauth2/callback", callbackHandler(oauthConfig))
+	http.HandleFunc("/list", listHandler(oauthConfig))
 	http.ListenAndServe(":8080", nil)
 }
 
@@ -124,20 +124,39 @@ func callbackHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
 			http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
+		session.Values["token"] = token
+		delete(session.Values, "stateToken")
+		session.Save(r, w)
+		http.Redirect(w, r, "/list", http.StatusTemporaryRedirect)
+	}
+}
+
+func listHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		session, err := store.Get(r, "oauth2-state")
+		if err != nil {
+			http.Error(w, "Failed to get session: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		val := session.Values["token"]
+		var token *oauth2.Token
+		if t, ok := val.(*oauth2.Token); ok {
+			token = t
+		} else {
+			http.Redirect(w, r, "/oauth2/login", http.StatusTemporaryRedirect)
+			return
+		}
 		tokenSource := oauthConfig.TokenSource(context.Background(), token)
-		secretName := "projects/xanthspod/secrets/apitest/versions/latest"
-		secret, err := accessSecretVersion(context.Background(), &tokenSource, secretName)
+		htmlDoc, err := listSecrets(context.Background(), &tokenSource)
 		if err != nil {
 			http.Error(w, "Failed to access secret: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		w.Write([]byte(secret))
-		fmt.Fprintf(w, "<p>State Token: %s</p>", html.EscapeString(stateToken))
-		fmt.Fprintf(w, "<p>Token: %s</p>", html.EscapeString(fmt.Sprintf("%+v", token)))
+		w.Write([]byte(htmlDoc))
 	}
 }
 
-func accessSecretVersion(ctx context.Context, tokenSource *oauth2.TokenSource, name string) (string, error) {
+func listSecrets(ctx context.Context, tokenSource *oauth2.TokenSource) (string, error) {
 
 	smclient, err := secretmanager.NewClient(ctx, option.WithTokenSource(*tokenSource))
 	if err != nil {
@@ -166,5 +185,6 @@ func accessSecretVersion(ctx context.Context, tokenSource *oauth2.TokenSource, n
 		sb.WriteString(secret)
 	}
 	sb.WriteString("</ul>")
+	sb.WriteString("</body></html>")
 	return sb.String(), nil
 }
