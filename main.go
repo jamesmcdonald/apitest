@@ -126,7 +126,11 @@ func callbackHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
 		}
 		session.Values["token"] = *token
 		delete(session.Values, "stateToken")
-		session.Save(r, w)
+		err = session.Save(r, w)
+		if err != nil {
+			http.Error(w, "Failed to save session: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 		http.Redirect(w, r, "/list", http.StatusTemporaryRedirect)
 	}
 }
@@ -139,8 +143,8 @@ func listHandler(oauthConfig *oauth2.Config) http.HandlerFunc {
 			return
 		}
 		val := session.Values["token"]
-		var token *oauth2.Token
-		if t, ok := val.(*oauth2.Token); ok {
+		var token oauth2.Token
+		if t, ok := val.(oauth2.Token); ok {
 			token = t
 		} else {
 			http.Redirect(w, r, "/oauth2/login", http.StatusTemporaryRedirect)
