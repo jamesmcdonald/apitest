@@ -38,7 +38,7 @@ func (a *App) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	url := a.OauthConfig.AuthCodeURL(stateToken, oauth2.AccessTypeOffline)
-	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+	http.Redirect(w, r, url, http.StatusFound)
 }
 
 func (a *App) callbackHandler(w http.ResponseWriter, r *http.Request) {
@@ -74,7 +74,7 @@ func (a *App) callbackHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to save session: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, callbackState.RedirectURL, http.StatusTemporaryRedirect)
+	http.Redirect(w, r, callbackState.RedirectURL, http.StatusFound)
 }
 
 func (a *App) listHandler(w http.ResponseWriter, r *http.Request) {
