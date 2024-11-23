@@ -56,7 +56,7 @@ func (a *App) encodeCallbackState(state callbackState) (string, error) {
 func (a *App) decodeCallbackState(stateToken string) (callbackState, error) {
 	parts := strings.Split(stateToken, ".")
 	if len(parts) != 2 {
-		return callbackState{}, fmt.Errorf("Invalid state token")
+		return callbackState{}, fmt.Errorf("invalid state token")
 	}
 	rawState, err := base64.RawURLEncoding.DecodeString(parts[0])
 	if err != nil {
@@ -67,7 +67,7 @@ func (a *App) decodeCallbackState(stateToken string) (callbackState, error) {
 		return callbackState{}, err
 	}
 	if !ed25519.Verify(a.SigningKey.Public().(ed25519.PublicKey), rawState, signature) {
-		return callbackState{}, fmt.Errorf("Invalid signature")
+		return callbackState{}, fmt.Errorf("invalid signature")
 	}
 	var state callbackState
 	err = json.Unmarshal(rawState, &state)
