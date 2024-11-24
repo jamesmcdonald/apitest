@@ -87,7 +87,7 @@ func main() {
 		OauthConfig: &oauth2.Config{
 			ClientID:     *client_id,
 			ClientSecret: *client_secret,
-			RedirectURL:  "https://apitest.jamesmcdonald.com/oauth2/callback",
+			RedirectURL:  *redirect_url,
 			Scopes: []string{
 				"https://www.googleapis.com/auth/cloud-platform",
 			},
