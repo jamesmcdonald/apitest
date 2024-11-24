@@ -24,6 +24,11 @@ spec:
       - name: apitest
         image: ghcr.io/jamesmcdonald/apitest
         imagePullPolicy: Always
+        env:
+        - name: APITEST_REDIRECT_URL
+          value: "https://apitest.jamesmcdonald.com/oauth2/callback"
+        - name: APITEST_GCP_PROJECT
+          value: "xanthspod"
         resources:
           requests:
             cpu: 100m

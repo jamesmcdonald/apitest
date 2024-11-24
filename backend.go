@@ -12,14 +12,14 @@ import (
 	"google.golang.org/api/option"
 )
 
-func listSecrets(ctx context.Context, tokenSource *oauth2.TokenSource) (string, error) {
+func listSecrets(ctx context.Context, tokenSource *oauth2.TokenSource, project string) (string, error) {
 	smclient, err := secretmanager.NewClient(ctx, option.WithTokenSource(*tokenSource))
 	if err != nil {
 		return "", fmt.Errorf("secretmanager NewClient: %v", err)
 	}
 	defer smclient.Close()
 
-	req := &secretmanagerpb.ListSecretsRequest{Parent: "projects/xanthspod"}
+	req := &secretmanagerpb.ListSecretsRequest{Parent: "projects/" + project}
 	res := smclient.ListSecrets(ctx, req)
 	secrets := []string{}
 	for {

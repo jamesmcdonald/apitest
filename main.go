@@ -16,7 +16,15 @@ import (
 
 func main() {
 	genkey := flag.Bool("genkey", false, "Generate and print a new ed25519 private key")
+	client_id := flag.String("client-id", "", "OAuth2 client ID")
+	client_secret := flag.String("client-secret", "", "OAuth2 client secret")
+	cookie_secret := flag.String("cookie-secret", "", "Secret for signing session cookies")
+	cookie_key := flag.String("cookie-key", "", "Key for encrypting session cookies")
+	signing_key := flag.String("signing-key", "", "Base64 encoded ed25519 private key for signing oauth2 state")
+	redirect_url := flag.String("redirect-url", "", "OAuth2 redirect URL for callback")
+	gcp_project := flag.String("gcp-project", "", "GCP project ID")
 	flag.Parse()
+
 	if *genkey {
 		key, err := genKey()
 		if err != nil {
@@ -27,23 +35,35 @@ func main() {
 		os.Exit(0)
 	}
 
-	var client_id string
-	var client_secret string
-	var cookie_secret string
-	var cookie_key string
-	var signing_key string
-
+	// Look for configuration in parameters, then environment variables, then files
+	const secretPath = "/secrets"
+	const envPrefix = "APITEST_"
 	for _, s := range []struct {
 		name     string
 		variable *string
+		secret   bool // If true, also look for a file in secretPath
 	}{
-		{"client_id", &client_id},
-		{"client_secret", &client_secret},
-		{"cookie_secret", &cookie_secret},
-		{"cookie_key", &cookie_key},
-		{"signing_key", &signing_key},
+		{"client_id", client_id, true},
+		{"client_secret", client_secret, true},
+		{"cookie_secret", cookie_secret, true},
+		{"cookie_key", cookie_key, true},
+		{"signing_key", signing_key, true},
+		{"redirect_url", redirect_url, false},
+		{"gcp_project", gcp_project, false},
 	} {
-		f, err := os.Open("/secrets/" + s.name)
+		if s.variable != nil && *s.variable != "" {
+			continue
+		}
+		ev := os.Getenv(strings.ToUpper(envPrefix + s.name))
+		if ev != "" {
+			*s.variable = ev
+			continue
+		}
+		if !s.secret {
+			fmt.Fprintf(os.Stderr, "Missing required configuration: %s\n", s.name)
+			os.Exit(1)
+		}
+		f, err := os.Open(secretPath + "/" + s.name)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to open %s file: %v\n", s.name, err)
 			os.Exit(1)
@@ -57,7 +77,7 @@ func main() {
 		*s.variable = strings.TrimSpace(string(data))
 	}
 
-	sk, err := base64.StdEncoding.DecodeString(signing_key)
+	sk, err := base64.StdEncoding.DecodeString(*signing_key)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to decode signing key: %v\n", err)
 		os.Exit(1)
@@ -65,16 +85,17 @@ func main() {
 
 	app := &App{
 		OauthConfig: &oauth2.Config{
-			ClientID:     client_id,
-			ClientSecret: client_secret,
+			ClientID:     *client_id,
+			ClientSecret: *client_secret,
 			RedirectURL:  "https://apitest.jamesmcdonald.com/oauth2/callback",
 			Scopes: []string{
 				"https://www.googleapis.com/auth/cloud-platform",
 			},
 			Endpoint: google.Endpoint,
 		},
-		CookieJar:  sessions.NewCookieStore([]byte(cookie_secret), []byte(cookie_key)),
+		CookieJar:  sessions.NewCookieStore([]byte(*cookie_secret), []byte(*cookie_key)),
 		SigningKey: sk,
+		GCPProject: *gcp_project,
 	}
 
 	mux := http.NewServeMux()

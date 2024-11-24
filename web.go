@@ -15,6 +15,7 @@ type App struct {
 	OauthConfig *oauth2.Config
 	CookieJar   *sessions.CookieStore
 	SigningKey  ed25519.PrivateKey
+	GCPProject  string
 }
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
@@ -98,7 +99,7 @@ func (a *App) listHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tokenSource := a.OauthConfig.TokenSource(context.Background(), token)
-	htmlDoc, err := listSecrets(context.Background(), &tokenSource)
+	htmlDoc, err := listSecrets(context.Background(), &tokenSource, a.GCPProject)
 	if err != nil {
 		http.Error(w, "Failed to access secret: "+err.Error(), http.StatusInternalServerError)
 		return
