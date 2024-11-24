@@ -9,4 +9,6 @@ FROM cgr.dev/chainguard/wolfi-base
 WORKDIR /opt/app
 COPY --from=gobuild /build/app/app .
 
+ENTRYPOINT ["/opt/app/app"]
+
 CMD ["./app"]
