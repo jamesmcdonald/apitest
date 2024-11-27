@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/gorilla/sessions"
 	"golang.org/x/oauth2"
@@ -16,10 +18,38 @@ type App struct {
 	CookieJar   *sessions.CookieStore
 	SigningKey  ed25519.PrivateKey
 	GCPProject  string
+	nonces      map[string]Nonce
+	nonceLock   sync.Mutex
 }
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "<a href='/oauth2/login'>Login with Google</a>")
+}
+
+func (a *App) addNonce(nonce string) {
+	a.nonceLock.Lock()
+	a.nonces[nonce] = Nonce{
+		Nonce:     nonce,
+		ExpiresAt: time.Now().Add(5 * time.Minute),
+	}
+	a.nonceLock.Unlock()
+}
+
+func (a *App) verifyNonce(nonce string) bool {
+	n, ok := a.nonces[nonce]
+	if !ok || n.ExpiresAt.Before(time.Now()) {
+		return false
+	}
+	delete(a.nonces, nonce)
+	return true
+}
+
+func (a *App) expireNonces() {
+	for nonce, n := range a.nonces {
+		if n.ExpiresAt.Before(time.Now()) {
+			delete(a.nonces, nonce)
+		}
+	}
 }
 
 func (a *App) loginHandler(w http.ResponseWriter, r *http.Request) {
@@ -33,12 +63,8 @@ func (a *App) loginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to encode state: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	if err != nil {
-		http.Error(w, "Failed to save session: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
 	url := a.OauthConfig.AuthCodeURL(stateToken, oauth2.AccessTypeOffline)
+	a.addNonce(nonce)
 	http.Redirect(w, r, url, http.StatusFound)
 }
 

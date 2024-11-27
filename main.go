@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gorilla/sessions"
 	"golang.org/x/oauth2"
@@ -96,7 +97,15 @@ func main() {
 		CookieJar:  sessions.NewCookieStore([]byte(*cookie_secret), []byte(*cookie_key)),
 		SigningKey: sk,
 		GCPProject: *gcp_project,
+		nonces:     make(map[string]Nonce),
 	}
+
+	go func() {
+		for {
+			time.Sleep(1 * time.Minute)
+			app.expireNonces()
+		}
+	}()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", indexHandler)

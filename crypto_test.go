@@ -67,9 +67,11 @@ func TestDecodeCallbackStateSuccess(t *testing.T) {
 	// Create a new App with a signing key
 	app := App{
 		SigningKey: signingKey,
+		nonces:     make(map[string]Nonce),
 	}
 
 	token := "eyJyZWRpcmVjdF91cmwiOiJzb21lZGF0YWhlcmUiLCJOb25jZSI6ImNvbnNpc3RlbnQifQ.SpQMnmu-1-A9Mu2FCq7V8-yVVeHvUlitJfGk2ccEe5KLOAZaNIha0uqrs3eXqKPTLMxwq5phTIaAXaGiOosrDg"
+	app.addNonce("consistent")
 	expected := callbackState{
 		RedirectURL: "somedatahere",
 		Nonce:       "consistent",
@@ -93,6 +95,7 @@ func TestDecodeCallbackStateWrongKey(t *testing.T) {
 	// Create a new App with a signing key
 	app := App{
 		SigningKey: signingKey,
+		nonces:     make(map[string]Nonce),
 	}
 
 	token := "eyJyZWRpcmVjdF91cmwiOiJzb21lZGF0YWhlcmUiLCJOb25jZSI6ImNvbnNpc3RlbnQifQ.SpQMnmu-1-A9Mu2FCq7V8-yVVeHvUlitJfGk2ccEe5KLOAZaNIha0uqrs3eXqKPTLMxwq5phTIaAXaGiOosrDg"

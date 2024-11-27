@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"time"
 )
 
 func genNonce() string {
@@ -43,6 +44,11 @@ type callbackState struct {
 	Nonce       string
 }
 
+type Nonce struct {
+	Nonce     string    `json:"nonce"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
 func (a *App) encodeCallbackState(state callbackState) (string, error) {
 	rawState, err := json.Marshal(state)
 	if err != nil {
@@ -74,5 +80,9 @@ func (a *App) decodeCallbackState(stateToken string) (callbackState, error) {
 	if err != nil {
 		return callbackState{}, err
 	}
+	if !a.verifyNonce(state.Nonce) {
+		return callbackState{}, fmt.Errorf("invalid nonce")
+	}
+
 	return state, nil
 }
