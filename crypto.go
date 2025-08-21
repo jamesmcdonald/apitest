@@ -11,6 +11,28 @@ import (
 	"time"
 )
 
+type ED25519Crypter struct {
+	PrivateKey ed25519.PrivateKey
+}
+
+type Crypter interface {
+	Sign(data string) string
+	Verify(data, sig string) (bool, error)
+}
+
+func (c *ED25519Crypter) Sign(data string) string {
+	sig := ed25519.Sign(c.PrivateKey, []byte(data))
+	return base64.RawURLEncoding.EncodeToString(sig)
+}
+
+func (c *ED25519Crypter) Verify(data, sig string) (bool, error) {
+	sigBytes, err := base64.RawURLEncoding.DecodeString(sig)
+	if err != nil {
+		return false, err
+	}
+	return ed25519.Verify(c.PrivateKey.Public().(ed25519.PublicKey), []byte(data), sigBytes), nil
+}
+
 func genNonce() string {
 	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
 	var token string
